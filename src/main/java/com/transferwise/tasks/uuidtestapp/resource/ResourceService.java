@@ -10,7 +10,8 @@ public class ResourceService {
 	private AtomicInteger concurrentRequestsCount = new AtomicInteger();
 
 	private AtomicLong startTimeMs = new AtomicLong();
-	private String resourceValue = "0";
+	private volatile String resourceValue = "0";
+	private int maxConcurrency = 0;
 
 	/**
 	 * Normally takes 2.5 seconds to respond.
@@ -20,6 +21,9 @@ public class ResourceService {
 		try {
 			for (int i = 0; i < 10; i++) {
 				int concurrency = concurrentRequestsCount.get();
+				synchronized (this){
+					maxConcurrency = Math.max(maxConcurrency, concurrency);
+				}
 				long timeTakenMs = 250;
 				timeTakenMs = (long) (timeTakenMs * Math.pow(1.4, concurrency - 1));
 				sleep(timeTakenMs);
@@ -47,5 +51,9 @@ public class ResourceService {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public int getMaxConcurrency() {
+		return maxConcurrency;
 	}
 }

@@ -41,4 +41,9 @@ public class CommonCacheResourceService {
 		cache.put(id, resource);
 		return resource;
 	}
+
+	// For Visuals only.
+	public String getCurrentCachedResource(Long id){
+		return cache.get(id);
+	}
 }

@@ -12,7 +12,6 @@ import java.util.concurrent.TimeUnit;
 public class BlockingCacheResourceService {
 	@Autowired
 	private ResourceService resourceService;
-
 	private LoadingCache<Long, String> cache;
 
 	@PostConstruct
@@ -25,5 +24,10 @@ public class BlockingCacheResourceService {
 
 	public String getResource(Long id) {
 		return cache.get(id);
+	}
+
+	// For Visuals only.
+	public String getCurrentCachedResource(Long id){
+		return cache.getIfPresent(id);
 	}
 }

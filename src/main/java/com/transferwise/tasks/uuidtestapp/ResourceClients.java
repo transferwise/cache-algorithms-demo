@@ -17,6 +17,8 @@ public class ResourceClients {
 	@Autowired
 	ResourceService resourceService;
 
+	private volatile boolean shuttingDown;
+
 	@PostConstruct
 	public void doSomeMagic() {
 		Thread[] threads = new Thread[CLIENTS_COUNT];
@@ -26,13 +28,17 @@ public class ResourceClients {
 			int finalI = i;
 			ClientState clientState = clientStates[i] = new ClientState();
 			threads[i] = new Thread(() -> {
-				for (int j = 0; j < 10; j++) {
+				for (int j = 0; j < 100; j++) {
 					sleep(2000 + new Random().nextInt(6000));
 
-					clientState.startTimeMs = System.currentTimeMillis();
-					String resource = cachedResourceService.getCachedResource(1l);
-					clientState.resource = resource;
-					clientState.startTimeMs = -1;
+					clientState.startQuerying();
+					try {
+						String resource = cachedResourceService.getCachedResource(1l);
+						clientState.resourceValue = resource;
+					}
+					finally {
+						clientState.stopQuerying();
+					}
 				}
 			});
 		}
@@ -42,31 +48,50 @@ public class ResourceClients {
 		}
 
 		new Thread(() -> {
-			while (true) {
-				System.out.print("\033[H\033[2J");
+			while (!shuttingDown) {
+				String currentCachedResource = cachedResourceService.getCurrentCachedResource(1l);
+				if (currentCachedResource == null){
+					currentCachedResource = "<NO_VALUE>";
+				}
+
+				ansiClear();
 				System.out.println("Resource:");
-				System.out.println("   Queries: " + resourceService.getConcurrency());
-				System.out.println("   Value: " + resourceService.getResourceValue());
+				System.out.println("   Queries: " + resourceService.getConcurrency() + " (max " + resourceService.getMaxConcurrency() + ")");
+				System.out.println("   Value in Resource: " + resourceService.getResourceValue());
+				System.out.println("   Cached value: " + currentCachedResource);
 				System.out.println();
 				for (int i = 0; i < CLIENTS_COUNT; i++) {
 					ClientState clientState = clientStates[i];
-					long startTimeMs = clientState.startTimeMs;
-					if (startTimeMs != -1) {
-						System.out.print("\u001B[32m");
+					long queryStartTimeMs = clientState.queryStartTimeMs;
+					long timeTakenMs = queryStartTimeMs == -1 ? -1 : System.currentTimeMillis() - queryStartTimeMs;
+
+					boolean querying = clientState.querying;
+					if (querying) {
+						ansiGreen();
+					} else if ((timeTakenMs != -1) && (timeTakenMs < 2000)) {
+						ansiYellow();
 					}
+					System.out.print("#");
 					System.out.print(i);
 					System.out.print(" - ");
-					System.out.print(clientState.resource == null ? "<NO_VALUE>" : clientState.resource);
+					System.out.print(clientState.resourceValue);
 					System.out.print(" ");
-					if (startTimeMs != -1) {
-						int timeTakenS = (int) ((System.currentTimeMillis() - startTimeMs) / 1000);
+					if (querying) {
+						int timeTakenS = (int) (timeTakenMs / 1000);
 						for (int j = 0; j < timeTakenS; j++) {
 							System.out.print(".");
 						}
-						System.out.print("\u001B[0m");
 					}
+					ansiDefaultColor();
 					System.out.println();
 				}
+
+				System.out.println();
+				ansiYellow();
+				System.out.println("YELLOW - Immediate answer to a query");
+				ansiGreen();
+				System.out.println("GREEN - Doing Query, one dot = 1 second");
+				ansiDefaultColor();
 				sleep(50);
 			}
 		}).start();
@@ -74,6 +99,24 @@ public class ResourceClients {
 		for (Thread thread : threads) {
 			join(thread);
 		}
+
+		shuttingDown = true;
+	}
+
+	private void ansiClear(){
+		System.out.print("\033[H\033[2J");
+	}
+
+	private void ansiGreen(){
+		System.out.print("\u001B[32m");
+	}
+
+	private void ansiYellow(){
+		System.out.print("\u001B[33m");
+	}
+
+	private void ansiDefaultColor(){
+		System.out.print("\u001B[0m");
 	}
 
 	private void sleep(long timeMs) {
@@ -93,7 +136,17 @@ public class ResourceClients {
 	}
 
 	private class ClientState {
-		long startTimeMs = -1;
-		String resource;
+		volatile boolean querying;
+		volatile long queryStartTimeMs = -1;
+		volatile String resourceValue = "<NO_VALUE>";
+
+		public void startQuerying() {
+			querying = true;
+			queryStartTimeMs = System.currentTimeMillis();
+		}
+
+		public void stopQuerying() {
+			querying = false;
+		}
 	}
 }

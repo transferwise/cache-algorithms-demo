@@ -33,6 +33,18 @@ public class CachedResourceService {
 			case REFRESHING:
 				return refreshingCacheResourceService.getResource(id);
 		}
-		return null;
+		throw new IllegalStateException("Invalid algorithm.");
+	}
+
+	public String getCurrentCachedResource(Long id){
+		switch (cacheAlgorithm) {
+			case COMMON:
+				return commonCacheResourceService.getCurrentCachedResource(id);
+			case BLOCKING:
+				return blockingCacheResourceService.getCurrentCachedResource(id);
+			case REFRESHING:
+				return refreshingCacheResourceService.getCurrentCachedResource(id);
+		}
+		throw new IllegalStateException("Invalid algorithm.");
 	}
 }

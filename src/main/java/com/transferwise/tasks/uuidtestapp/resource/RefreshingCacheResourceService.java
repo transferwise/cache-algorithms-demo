@@ -27,4 +27,9 @@ public class RefreshingCacheResourceService {
 	public String getResource(Long id) {
 		return cache.get(id);
 	}
+
+	// For Visuals only.
+	public String getCurrentCachedResource(Long id){
+		return cache.getIfPresent(id);
+	}
 }
